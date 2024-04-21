@@ -14,10 +14,12 @@ mod update_admin;
 #[cfg(feature = "admin")]
 mod update_difficulty;
 mod utils;
+mod miner_v2;
 
 use std::sync::Arc;
 
 use clap::{command, Parser, Subcommand};
+use miner_v2::MinerV2;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -73,14 +75,17 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    #[command(about = "Fetch the Ore balance of an account")]
+    #[command(about = "Fetch the Orz balance of an account")]
     Balance(BalanceArgs),
 
     #[command(about = "Fetch the distributable rewards of the busses")]
     Busses(BussesArgs),
 
-    #[command(about = "Mine Ore using local compute")]
+    #[command(about = "Mine Orz using local compute")]
     Mine(MineArgs),
+
+    #[command(about = "Mine Orz using local compute. Includes additional commands and different send logic.")]
+    MineV2(MineV2Args),
 
     #[command(about = "Claim available mining rewards")]
     Claim(ClaimArgs),
@@ -138,6 +143,57 @@ struct MineArgs {
     )]
     threads: u64,
 }
+#[derive(Parser, Debug)]
+struct MineV2Args {
+    #[arg(
+        long,
+        short,
+        value_name = "THREAD_COUNT",
+        help = "The number of threads to dedicate to mining",
+        default_value = "1"
+    )]
+    threads: u64,
+    #[arg(
+        long,
+        short = 's',
+        value_name = "SEND_INTERVAL",
+        help = "The amount of time to wait between tx sends. 100ms is 10 sends per second.",
+        default_value = "1000"
+    )]
+    send_interval: u64,
+    #[arg(
+        long,
+        short = 's',
+        value_name = "SIMULTATION_ATTEMPS",
+        help = "The amount of simulation attempts before sending transaction. Useful for debugging ",
+        default_value = None,
+    )]
+    sim_attempts: Option<u64>,
+    #[arg(
+        long,
+        short = 'b',
+        value_name = "BATCH_SIZE",
+        help = "The batch size of wallets to process and bundle together. Max is 5.",
+        default_value = "1"
+    )]
+    batch_size: u64,
+    #[arg(
+        long,
+        short = 'f',
+        value_name = "FEE_PAYER",
+        help = "The path to the fee_payer wallet.",
+        default_value = None
+    )]
+    fee_payer: Option<String>,
+    #[arg(
+        long,
+        short = 'w',
+        value_name = "MINER_WALLETS",
+        help = "The directory/folder with the json wallets. Use solana-keygen to make keys.",
+        default_value = None
+    )]
+    miner_wallets: Option<String>,
+}
 
 #[derive(Parser, Debug)]
 struct TreasuryArgs {}
@@ -192,13 +248,18 @@ async fn main() {
     // Initialize miner.
     let cluster = args.rpc.unwrap_or(cli_config.json_rpc_url);
     let default_keypair = args.keypair.unwrap_or(cli_config.keypair_path);
-    let rpc_client = RpcClient::new_with_commitment(cluster, CommitmentConfig::confirmed());
+    let rpc_client = RpcClient::new_with_commitment(cluster.clone(), CommitmentConfig::confirmed());
+
+    let rpc_client_2 = Arc::new(RpcClient::new_with_commitment(cluster, CommitmentConfig::confirmed()));
+
 
     let miner = Arc::new(Miner::new(
         Arc::new(rpc_client),
         args.priority_fee,
         Some(default_keypair),
     ));
+    
+    let priority_fee = args.priority_fee;
 
     // Execute user command.
     match args.command {
@@ -216,6 +277,9 @@ async fn main() {
         }
         Commands::Mine(args) => {
             miner.mine(args.threads).await;
+        }
+        Commands::MineV2(args) => {
+            MinerV2::mine(rpc_client_2.clone(), args.threads, args.send_interval, args.batch_size, args.miner_wallets, priority_fee ,args.sim_attempts, args.fee_payer).await;
         }
         Commands::Claim(args) => {
             miner.claim(args.beneficiary, args.amount).await;
@@ -236,7 +300,11 @@ async fn main() {
 }
 
 impl Miner {
-    pub fn new(rpc_client: Arc<RpcClient>, priority_fee: u64, keypair_filepath: Option<String>) -> Self {
+    pub fn new(
+        rpc_client: Arc<RpcClient>,
+        priority_fee: u64,
+        keypair_filepath: Option<String>,
+    ) -> Self {
         Self {
             rpc_client,
             keypair_filepath,

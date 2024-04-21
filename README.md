@@ -1,7 +1,6 @@
 # Ore CLI with Nvidia GPU Support
 
-A command line interface for the Ore program to utilize Nvidia GPU's. 
-
+A command line interface for the Ore program to utilize Nvidia GPU's.
 
 Built by [@BenjaSOL](https://x.com/benjasol_) & [@KaedonsCrypto](https://x.com/KaedonsCrypto)
 
@@ -9,7 +8,7 @@ Built by [@BenjaSOL](https://x.com/benjasol_) & [@KaedonsCrypto](https://x.com/K
 
 To build the Ore CLI, you will need to have the Rust programming language installed. You can install Rust by following the instructions on the [Rust website](https://www.rust-lang.org/tools/install).
 
-You must have CUDA installed 
+You must have CUDA installed
 
 ```sh
 export CUDA_VISIBLE_DEVICES=<GPU_INDEX>
@@ -35,9 +34,8 @@ Once you have Rust installed, you can build the Ore CLI by running the following
 cargo build --release
 ```
 
-
 ```sh
-./target/release/ore.exe --rpc "" --priority-fee 1 --keypair 'path to keypair' --priority-fee 1 mine --threads 4
+./target/release/ore.exe --rpc "" --priority-fee 1 --keypair 'path to keypair' mine --threads 4
 ```
 
 You will now run your hashing on the GPU instead of the CPU!
