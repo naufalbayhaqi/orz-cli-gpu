@@ -14,12 +14,10 @@ mod update_admin;
 #[cfg(feature = "admin")]
 mod update_difficulty;
 mod utils;
-mod miner_v2;
 
 use std::sync::Arc;
 
 use clap::{command, Parser, Subcommand};
-use miner_v2::MinerV2;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -84,9 +82,6 @@ enum Commands {
     #[command(about = "Mine Orz using local compute")]
     Mine(MineArgs),
 
-    #[command(about = "Mine Orz using local compute. Includes additional commands and different send logic.")]
-    MineV2(MineV2Args),
-
     #[command(about = "Claim available mining rewards")]
     Claim(ClaimArgs),
 
@@ -142,57 +137,6 @@ struct MineArgs {
         default_value = "1"
     )]
     threads: u64,
-}
-#[derive(Parser, Debug)]
-struct MineV2Args {
-    #[arg(
-        long,
-        short,
-        value_name = "THREAD_COUNT",
-        help = "The number of threads to dedicate to mining",
-        default_value = "1"
-    )]
-    threads: u64,
-    #[arg(
-        long,
-        short = 's',
-        value_name = "SEND_INTERVAL",
-        help = "The amount of time to wait between tx sends. 100ms is 10 sends per second.",
-        default_value = "1000"
-    )]
-    send_interval: u64,
-    #[arg(
-        long,
-        short = 's',
-        value_name = "SIMULTATION_ATTEMPS",
-        help = "The amount of simulation attempts before sending transaction. Useful for debugging ",
-        default_value = None,
-    )]
-    sim_attempts: Option<u64>,
-    #[arg(
-        long,
-        short = 'b',
-        value_name = "BATCH_SIZE",
-        help = "The batch size of wallets to process and bundle together. Max is 5.",
-        default_value = "1"
-    )]
-    batch_size: u64,
-    #[arg(
-        long,
-        short = 'f',
-        value_name = "FEE_PAYER",
-        help = "The path to the fee_payer wallet.",
-        default_value = None
-    )]
-    fee_payer: Option<String>,
-    #[arg(
-        long,
-        short = 'w',
-        value_name = "MINER_WALLETS",
-        help = "The directory/folder with the json wallets. Use solana-keygen to make keys.",
-        default_value = None
-    )]
-    miner_wallets: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -277,9 +221,6 @@ async fn main() {
         }
         Commands::Mine(args) => {
             miner.mine(args.threads).await;
-        }
-        Commands::MineV2(args) => {
-            MinerV2::mine(rpc_client_2.clone(), args.threads, args.send_interval, args.batch_size, args.miner_wallets, priority_fee ,args.sim_attempts, args.fee_payer).await;
         }
         Commands::Claim(args) => {
             miner.claim(args.beneficiary, args.amount).await;
